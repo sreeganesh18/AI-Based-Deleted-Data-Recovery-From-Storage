@@ -1,1 +1,3 @@
-# AI-Based-Deleted-Data-Recovery-From-Storage
+# AI Deleted Data Recovery
+
+Project scaffold for AI-based deleted data recovery.
