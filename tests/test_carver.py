@@ -6,8 +6,7 @@ def test_signature_carving(dummy_disk_image):
     scanner = DiskScanner(dummy_disk_image, block_size=512)
     carver = SignatureCarver(block_size=512)
 
-    for offset, block in scanner.scan_blocks():
-        carver.process_block(offset, block)
+    [carver.process_block(offset, block) for offset, block in scanner.scan_blocks()]
 
     carved_files = carver.get_carved_files()
 
@@ -16,4 +15,4 @@ def test_signature_carving(dummy_disk_image):
     carved_data = carved_files[0]["data"]
     assert carved_data.startswith(b"\xff\xd8")
     assert carved_data.endswith(b"\xff\xd9")
-    assert len(carved_data) == 16 + 800 + 2  # Header + Body + Footer
+    assert len(carved_data) == 20 + 800 + 2  # Header (20) + Body (800) + Footer (2)

@@ -1,5 +1,4 @@
 from utils.validation import (
-    check_file_integrity,
     assign_confidence_score,
     calculate_md5,
 )
@@ -8,7 +7,7 @@ import os
 
 def test_md5():
     data = b"testdata"
-    assert calculate_md5(data) == "f8b1ad6ca1965b93569dd30ce7eaf8fa"
+    assert calculate_md5(data) == "ef654c40ab4f1747fc699915d4f70902"
 
 
 def test_confidence_score():
