@@ -3,3 +3,4 @@ Report.md
 __pycache__/
 *.pyc
 ai_deleted_data_recovery.egg-info/
+models\checkpoints\*
