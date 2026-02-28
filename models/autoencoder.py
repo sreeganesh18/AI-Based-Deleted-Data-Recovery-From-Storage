@@ -1,34 +1,42 @@
+import torch
 import torch.nn as nn
 
 
-class ImageAutoencoder(nn.Module):
+class FragmentAutoencoder(nn.Module):
     """
-    Autoencoder for reconstructing fragmented images by filling missing blocks.
-    Assuming standard input size like 64x64 or 128x128.
+    1D-Convolutional Denoising Autoencoder for 512-byte fragments.
+    Input/Output: (batch, 1, 512) tensor
     """
 
     def __init__(self):
-        super(ImageAutoencoder, self).__init__()
-
+        super(FragmentAutoencoder, self).__init__()
+        
         # Encoder
         self.encoder = nn.Sequential(
-            nn.Conv2d(3, 16, 3, stride=2, padding=1),
+            nn.Conv1d(1, 32, kernel_size=3, stride=2, padding=1),  # -> (batch, 32, 256)
             nn.ReLU(),
-            nn.Conv2d(16, 32, 3, stride=2, padding=1),
+            nn.BatchNorm1d(32),
+            nn.Conv1d(32, 64, kernel_size=3, stride=2, padding=1), # -> (batch, 64, 128)
             nn.ReLU(),
-            nn.Conv2d(32, 64, 7),
+            nn.BatchNorm1d(64),
+            nn.Conv1d(64, 128, kernel_size=3, stride=2, padding=1), # -> (batch, 128, 64)
+            nn.ReLU(),
+            nn.BatchNorm1d(128)
         )
+        
         # Decoder
         self.decoder = nn.Sequential(
-            nn.ConvTranspose2d(64, 32, 7),
+            nn.ConvTranspose1d(128, 64, kernel_size=3, stride=2, padding=1, output_padding=1), # -> (batch, 64, 128)
             nn.ReLU(),
-            nn.ConvTranspose2d(32, 16, 3, stride=2, padding=1, output_padding=1),
+            nn.BatchNorm1d(64),
+            nn.ConvTranspose1d(64, 32, kernel_size=3, stride=2, padding=1, output_padding=1),  # -> (batch, 32, 256)
             nn.ReLU(),
-            nn.ConvTranspose2d(16, 3, 3, stride=2, padding=1, output_padding=1),
-            nn.Sigmoid(),
+            nn.BatchNorm1d(32),
+            nn.ConvTranspose1d(32, 1, kernel_size=3, stride=2, padding=1, output_padding=1),   # -> (batch, 1, 512)
+            nn.Sigmoid() # Sigmoid for [0, 1] output
         )
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self.encoder(x)
         x = self.decoder(x)
         return x

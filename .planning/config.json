@@ -1,0 +1,15 @@
+{
+  "workflow": {
+    "preferences": {
+      "language": "python",
+      "framework": "pytorch",
+      "ui": "streamlit",
+      "package_manager": "uv",
+      "testing": "pytest"
+    }
+  },
+  "project": {
+    "name": "AI Deleted Data Recovery",
+    "version": "0.1.0"
+  }
+}

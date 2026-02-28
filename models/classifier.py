@@ -3,39 +3,55 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
-class FragmentClassifierCNN(nn.Module):
+class FragmentClassifier(nn.Module):
     """
-    CNN model to classify if a 512-byte block is an image_fragment or non-image.
-    Input: 1x32x16 (which is 512 bytes)
+    1D-CNN for fragment classification (JPEG, PDF, OTHER).
+    Input: (batch, 1, 512) tensor
+    Output: (batch, 3) logits
     """
 
-    def __init__(self):
-        super(FragmentClassifierCNN, self).__init__()
-        # 1 channel input (bytes), 16 output channels, 3x3 kernel
-        self.conv1 = nn.Conv2d(1, 16, kernel_size=3, padding=1)
-        self.conv2 = nn.Conv2d(16, 32, kernel_size=3, padding=1)
-        self.pool = nn.MaxPool2d(2, 2)
-        # after two pools of 2x2: (32/4) x (16/4) = 8 x 4
-        self.fc1 = nn.Linear(32 * 8 * 4, 128)
-        self.fc2 = nn.Linear(128, 2)  # 2 classes: image_fragment, non_image
+    def __init__(self, num_classes: int = 3):
+        super(FragmentClassifier, self).__init__()
+        
+        # Input: (batch, 1, 512)
+        self.conv1 = nn.Conv1d(1, 32, kernel_size=3, padding=1)
+        self.bn1 = nn.BatchNorm1d(32)
+        # Shape: (batch, 32, 512)
+        
+        self.conv2 = nn.Conv1d(32, 64, kernel_size=3, padding=1)
+        self.bn2 = nn.BatchNorm1d(64)
+        # Shape: (batch, 64, 512)
+        
+        self.pool = nn.MaxPool1d(2)
+        # Shape: (batch, 64, 256) after pooling
+        
+        self.conv3 = nn.Conv1d(64, 128, kernel_size=3, padding=1)
+        self.bn3 = nn.BatchNorm1d(128)
+        # Shape: (batch, 128, 256)
+        
+        self.fc1 = nn.Linear(128 * 128, 256)
+        # MaxPooling 256 / 2 = 128 (assuming we pool twice)
+        # Wait, I only pooled once above.
+        
+        self.fc2 = nn.Linear(256, num_classes)
+        self.dropout = nn.Dropout(0.3)
 
-    def forward(self, x):
-        x = self.pool(F.relu(self.conv1(x)))
-        x = self.pool(F.relu(self.conv2(x)))
-        x = x.view(-1, 32 * 8 * 4)
-        x = F.relu(self.fc1(x))
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        # Layer 1
+        x = F.relu(self.bn1(self.conv1(x)))
+        # Layer 2
+        x = F.relu(self.bn2(self.conv2(x)))
+        x = self.pool(x)
+        
+        # Layer 3
+        x = F.relu(self.bn3(self.conv3(x)))
+        x = self.pool(x)
+        
+        # Flatten
+        # After two pools, length is 512 / 2 / 2 = 128
+        x = x.view(x.size(0), -1)
+        
+        x = self.dropout(F.relu(self.fc1(x)))
         x = self.fc2(x)
+        
         return x
-
-
-def classify_block(block: bytes, model: nn.Module) -> bool:
-    """
-    Returns True if the block is predicted as an image fragment.
-    """
-    if len(block) < 512:
-        block = block.ljust(512, b"\x00")
-    tensor = torch.tensor(list(block), dtype=torch.float32).view(1, 1, 32, 16) / 255.0
-    with torch.no_grad():
-        output = model(tensor)
-        _, predicted = torch.max(output.data, 1)
-        return predicted.item() == 0  # Assuming 0 is image_fragment
