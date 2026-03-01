@@ -2,6 +2,10 @@ import pytest
 import os
 
 
+def pytest_addoption(parser):
+    parser.addoption("--parallel", action="store_true", help="Run parallel tests")
+
+
 @pytest.fixture(scope="session")
 def dummy_disk_image(tmp_path_factory):
     """

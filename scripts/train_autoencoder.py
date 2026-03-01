@@ -2,7 +2,7 @@ import argparse
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, random_split
 from models.autoencoder import FragmentAutoencoder
 from dataset.loader import FragmentDataset
 from dataset.noise import NoiseGenerator
@@ -27,32 +27,40 @@ def main():
         print(f"Error: data directory {args.data_dir} not found.")
         return
         
-    dataset = FragmentDataset(root_dir=args.data_dir)
-    if len(dataset) == 0:
+    full_dataset = FragmentDataset(root_dir=args.data_dir)
+    if len(full_dataset) == 0:
         print("No data found to train.")
         return
-        
-    dataloader = DataLoader(dataset, batch_size=args.batch_size, shuffle=True)
+
+    # 80/20 Train/Val Split
+    train_size = int(0.8 * len(full_dataset))
+    val_size = len(full_dataset) - train_size
+    train_dataset, val_dataset = random_split(full_dataset, [train_size, val_size])
+    
+    train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
+    val_loader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False)
+    
+    print(f"Dataset sizes: Train={len(train_dataset)}, Val={len(val_dataset)}")
     
     # Initialize Model, Optimizer, Criterion
     model = FragmentAutoencoder()
     optimizer = optim.Adam(model.parameters(), lr=args.lr)
     criterion = nn.MSELoss()
     
-    # Initialize Noise Generator
+    # Initialize Noise Generator for Training/Validation
     noise_gen = NoiseGenerator()
     
+    # Initialize Trainer
+    trainer = Trainer(model, optimizer, criterion, device=device)
+    
     # Training Loop
-    best_loss = float('inf')
+    best_val_psnr = -1.0
     for epoch in range(1, args.epochs + 1):
+        # Training
         model.train()
         epoch_loss = 0.0
-        
-        for data, _ in dataloader:
-            # We ignore labels for autoencoder (unsupervised reconstruction)
+        for data, _ in train_loader:
             clean_data = data.to(device)
-            
-            # Apply Noise (e.g., mix of bit-flip and masking)
             noisy_data = noise_gen.add_bit_flip_noise(clean_data, p=0.02)
             noisy_data = noise_gen.add_masking_noise(noisy_data, length=32)
             
@@ -62,16 +70,28 @@ def main():
             loss.backward()
             optimizer.step()
             epoch_loss += loss.item()
-            
-        avg_loss = epoch_loss / len(dataloader)
-        print(f"Epoch {epoch}/{args.epochs} - Reconstruction Loss: {avg_loss:.6f}")
         
-        # Save best model
-        if avg_loss < best_loss:
-            best_loss = avg_loss
-            os.makedirs(os.path.dirname(args.model_out), exist_ok=True)
-            torch.save(model.state_dict(), args.model_out)
-            print(f"Saved best model with reconstruction loss {best_loss:.6f} to {args.model_out}")
+        avg_train_loss = epoch_loss / len(train_loader)
+        trainer.history["train_loss"].append(avg_train_loss)
+        
+        # Validation using Trainer's specialized method
+        val_metrics = trainer.validate_epoch(val_loader, noise_gen=noise_gen)
+        
+        val_loss = val_metrics["loss"]
+        val_psnr = val_metrics.get("psnr", 0.0)
+        val_ssim = val_metrics.get("ssim", 0.0)
+        
+        print(f"Epoch {epoch}/{args.epochs}:")
+        print(f"  Train Loss: {avg_train_loss:.6f}")
+        print(f"  Val Loss:   {val_loss:.6f}")
+        print(f"  Val PSNR:   {val_psnr:.2f} dB")
+        print(f"  Val SSIM:   {val_ssim:.4f}")
+        
+        # Save best model based on PSNR
+        if val_psnr > best_val_psnr:
+            best_val_psnr = val_psnr
+            trainer.save_checkpoint(args.model_out, epoch)
+            print(f"Saved best model with Val PSNR {best_val_psnr:.2f} to {args.model_out}")
 
     print("Training complete.")
 

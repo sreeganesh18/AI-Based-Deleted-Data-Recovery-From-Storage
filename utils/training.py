@@ -4,6 +4,7 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 import os
 from typing import Dict, Any, Optional
+from utils.validation import calculate_psnr, calculate_ssim
 
 
 class Trainer:
@@ -22,7 +23,13 @@ class Trainer:
         self.optimizer = optimizer
         self.criterion = criterion
         self.device = device
-        self.history: Dict[str, list] = {"train_loss": [], "val_loss": [], "val_acc": []}
+        self.history: Dict[str, list] = {
+            "train_loss": [], 
+            "val_loss": [], 
+            "val_acc": [],
+            "val_psnr": [],
+            "val_ssim": []
+        }
 
     def train_epoch(self, dataloader: DataLoader) -> float:
         """Runs one epoch of training."""
@@ -41,25 +48,45 @@ class Trainer:
         self.history["train_loss"].append(avg_loss)
         return avg_loss
 
-    def validate_epoch(self, dataloader: DataLoader) -> Dict[str, float]:
+    def validate_epoch(self, dataloader: DataLoader, noise_gen: Optional[Any] = None) -> Dict[str, float]:
         """Runs one epoch of validation."""
         self.model.eval()
         total_loss = 0.0
         correct = 0
         total = 0
+        total_psnr = 0.0
+        total_ssim = 0.0
         
         with torch.no_grad():
             for data, target in dataloader:
-                data, target = data.to(self.device), target.to(self.device)
-                output = self.model(data)
-                loss = self.criterion(output, target)
-                total_loss += loss.item()
+                data = data.to(self.device)
                 
-                # Accuracy only applies to classification tasks
-                if isinstance(self.criterion, nn.CrossEntropyLoss):
-                    _, predicted = torch.max(output.data, 1)
-                    total += target.size(0)
-                    correct += (predicted == target).sum().item()
+                # If we have a noise generator, it's a denoising task
+                if noise_gen:
+                    # Apply noise to original data for the model to clean
+                    clean_data = data
+                    noisy_data = noise_gen.add_bit_flip_noise(clean_data, p=0.02)
+                    noisy_data = noise_gen.add_masking_noise(noisy_data, length=32)
+                    
+                    output = self.model(noisy_data)
+                    loss = self.criterion(output, clean_data)
+                    total_loss += loss.item()
+                    
+                    # Compute PSNR/SSIM
+                    total_psnr += calculate_psnr(clean_data, output)
+                    total_ssim += calculate_ssim(clean_data, output)
+                else:
+                    # Classification task
+                    target = target.to(self.device)
+                    output = self.model(data)
+                    loss = self.criterion(output, target)
+                    total_loss += loss.item()
+                    
+                    # Accuracy only applies to classification tasks
+                    if isinstance(self.criterion, nn.CrossEntropyLoss):
+                        _, predicted = torch.max(output.data, 1)
+                        total += target.size(0)
+                        correct += (predicted == target).sum().item()
 
         avg_loss = total_loss / len(dataloader)
         self.history["val_loss"].append(avg_loss)
@@ -69,6 +96,14 @@ class Trainer:
             acc = 100 * correct / total
             self.history["val_acc"].append(acc)
             metrics["acc"] = acc
+            
+        if noise_gen:
+            avg_psnr = total_psnr / len(dataloader)
+            avg_ssim = total_ssim / len(dataloader)
+            self.history["val_psnr"].append(avg_psnr)
+            self.history["val_ssim"].append(avg_ssim)
+            metrics["psnr"] = avg_psnr
+            metrics["ssim"] = avg_ssim
             
         return metrics
 
