@@ -35,8 +35,8 @@
 **Requirements:** [UI-01, UI-02, UI-03, UI-04]
 **Goal:** Build a functional multi-page Streamlit dashboard for end-to-end data recovery.
 **Plans:** 3 plans
-- [ ] 05-01-PLAN.md — Application setup and configuration page.
-- [ ] 05-02-PLAN.md — Real-time scanning and carving integration.
+- [x] 05-01-PLAN.md — Application setup and configuration page.
+- [x] 05-02-PLAN.md — Real-time scanning and carving integration.
 - [ ] 05-03-PLAN.md — File review, interactive comparison, and export logic.
 
 ## Phase 6: Testing & Validation
