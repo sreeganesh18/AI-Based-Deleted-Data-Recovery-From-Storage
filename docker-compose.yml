@@ -1,0 +1,100 @@
+# =============================================================================
+# docker-compose.yml — AI-Based Deleted Data Recovery
+# Version: Compose Spec (no version key required for modern Docker)
+# =============================================================================
+#
+# USAGE:
+#   1. Copy .env.example to .env and set DATA_DIR and CHECKPOINTS_DIR
+#   2. docker compose build
+#   3. docker compose up
+#   4. Open http://localhost:8501 in your browser
+#
+# To run CLI pipeline mode:
+#   docker compose run --rm app python main.py --image /data/your_disk.img
+#
+# =============================================================================
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+
+    # Human-readable container name
+    container_name: ai_data_recovery
+
+    # Port mapping: HOST:CONTAINER
+    # Change the left side (HOST) if 8501 is already in use on your machine
+    ports:
+      - "${STREAMLIT_HOST_PORT:-8501}:8501"
+
+    # -------------------------------------------------------------------------
+    # Volume Mounts
+    # -------------------------------------------------------------------------
+    volumes:
+      # 1. Model Checkpoints (READ-ONLY — pre-trained weights)
+      #    Set CHECKPOINTS_DIR in .env to the folder containing *.pth files
+      #    Container path: /app/models/checkpoints/
+      - "${CHECKPOINTS_DIR:-./models/checkpoints}:/app/models/checkpoints:ro"
+
+      # 2. Disk Image Data Directory (READ-ONLY — raw forensic images)
+      #    Set DATA_DIR in .env to the folder containing *.img / *.dd files
+      #    In the Streamlit UI, use path: /data/your_image.img
+      - "${DATA_DIR:-./dataset}:/data:ro"
+
+      # 3. Recovered Data Output (READ-WRITE — exported recovered files)
+      #    Files exported via the UI will appear in this folder on your host.
+      - "${RECOVERED_DIR:-./recovered_data}:/app/recovered_data:rw"
+
+      # 4. OPTIONAL: Super-Resolution Model Cache
+      #    Persist the FSRCNN model so it's not re-downloaded on each restart.
+      - fsrcnn_model_cache:/app/reconstruction/models
+
+    # -------------------------------------------------------------------------
+    # Environment Variables
+    # -------------------------------------------------------------------------
+    environment:
+      # Streamlit server configuration
+      - STREAMLIT_SERVER_ADDRESS=0.0.0.0
+      - STREAMLIT_SERVER_PORT=8501
+      - STREAMLIT_SERVER_HEADLESS=true
+      - STREAMLIT_BROWSER_GATHER_USAGE_STATS=false
+
+      # PyTorch: disable CUDA entirely (CPU-only inference)
+      - CUDA_VISIBLE_DEVICES=""
+
+      # Python: do not buffer stdout (better container logging)
+      - PYTHONUNBUFFERED=1
+      - PYTHONDONTWRITEBYTECODE=1
+
+    # -------------------------------------------------------------------------
+    # Restart Policy
+    # -------------------------------------------------------------------------
+    restart: unless-stopped
+
+    # -------------------------------------------------------------------------
+    # Healthcheck (mirrors the Dockerfile HEALTHCHECK)
+    # -------------------------------------------------------------------------
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8501/_stcore/health" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+    # -------------------------------------------------------------------------
+    # Labels (metadata for tooling / documentation)
+    # -------------------------------------------------------------------------
+    labels:
+      - "com.project.name=AI-Based Deleted Data Recovery"
+      - "com.project.description=Streamlit UI for AI-powered forensic file recovery"
+      - "com.project.python=3.12"
+
+# =============================================================================
+# Named Volumes
+# =============================================================================
+volumes:
+  # Persistent cache for the FSRCNN super-resolution model (~10MB)
+  # Avoids re-downloading from GitHub on every container restart.
+  fsrcnn_model_cache:
+    name: ai_recovery_fsrcnn_cache

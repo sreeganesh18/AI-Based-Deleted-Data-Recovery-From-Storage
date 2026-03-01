@@ -1,0 +1,77 @@
+# =============================================================================
+# .dockerignore — AI-Based Deleted Data Recovery
+# Excludes files that should NOT be copied into the Docker image.
+# Keeps the image lean and avoids leaking local state.
+# =============================================================================
+
+# --- Version Control ---
+.git
+.gitignore
+
+# --- Python Bytecode / Cache ---
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# --- Virtual Environments ---
+.venv/
+venv/
+env/
+ENV/
+
+# --- Python Egg Info (build artifacts) ---
+*.egg-info/
+dist/
+build/
+
+# --- Test Cache ---
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# --- IDE / Editor Files ---
+.vscode/
+.idea/
+*.code-workspace
+.gemini/
+
+# --- Planning / Documentation (optional — include if desired) ---
+.planning/
+plan.md
+Report.md
+
+# --- Model Checkpoints ---
+# These are large binary files (~50 MB for classifier).
+# They are mounted at runtime via Docker volume — NOT baked into the image.
+models/checkpoints/*.pth
+
+# --- Dataset Raw Data ---
+# Raw disk image files and training fragments are mount-time assets.
+dataset/fragments/*
+dataset/original/*
+dataset/reconstructed/*
+
+# --- Recovered Output ---
+# Runtime output — should be mounted as a volume.
+recovered_data/
+
+# --- OS-Specific Junk ---
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# --- Logs ---
+*.log
+
+# --- Environment Files (never bake secrets into images) ---
+.env
+*.env
+
+# --- uv lockfile — only needed on host for reproducible installs ---
+# uv.lock  # Uncomment if you switch to uv inside Docker
+
+# --- Jupyter Notebooks ---
+*.ipynb
+.ipynb_checkpoints/
