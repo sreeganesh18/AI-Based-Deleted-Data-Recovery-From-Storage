@@ -37,10 +37,10 @@
 **Plans:** 3 plans
 - [x] 05-01-PLAN.md — Application setup and configuration page.
 - [x] 05-02-PLAN.md — Real-time scanning and carving integration.
-- [ ] 05-03-PLAN.md — File review, interactive comparison, and export logic.
+- [x] 05-03-PLAN.md — File review, interactive comparison, and export logic.
 
 ## Phase 6: Testing & Validation
-- [ ] Implement unit and integration tests for all modules.
-- [ ] Perform E2E tests with real-world scenarios (accidental deletion, damaged storage).
-- [ ] Evaluate model performance (accuracy, precision, denoising quality).
-- [ ] Document project usage and API.
+**Requirements:** [TEST-01, TEST-02, TEST-03, DOC-01, DOC-02, VAL-01]
+**Goal:** Finalize and validate the system with comprehensive testing and documentation.
+- [x] 06-01-PLAN.md — Core logic and integration testing. [TEST-01, TEST-02]
+- [x] 06-02-PLAN.md — Performance, documentation, and finalization. [TEST-03, DOC-01, DOC-02, VAL-01]

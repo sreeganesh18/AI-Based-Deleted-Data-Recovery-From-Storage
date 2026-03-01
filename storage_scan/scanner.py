@@ -1,5 +1,6 @@
 import os
 import mmap
+import math
 from typing import Generator, Tuple, Optional
 
 
@@ -73,3 +74,26 @@ class DiskScanner:
         # returns byte offset
         cluster_bytes = cluster_index * self.cluster_size
         return self.data_offset + cluster_bytes
+
+    @staticmethod
+    def calculate_entropy(data: bytes) -> float:
+        """
+        Calculates the Shannon entropy of a given byte sequence.
+        Returns a value between 0 and 8.0.
+        """
+        if not data:
+            return 0.0
+        
+        entropy = 0.0
+        # Count frequency of each byte (0-255)
+        counts = [0] * 256
+        for b in data:
+            counts[b] += 1
+        
+        for count in counts:
+            if count == 0:
+                continue
+            p = count / len(data)
+            entropy -= p * math.log2(p)
+            
+        return entropy

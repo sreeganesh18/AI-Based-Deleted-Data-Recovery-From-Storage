@@ -42,7 +42,9 @@ def scanning_worker(disk_path, clf_path, result_queue, stop_event):
                         "Type": identification["type"],
                         "Confidence": f"{identification['confidence']:.2f}",
                         "Source": identification["source"],
-                        "Size": f"{block_size} B"
+                        "Size": f"{block_size} B",
+                        "data": block,
+                        "identification": identification
                     }
                 })
             
@@ -130,6 +132,10 @@ def render_scanning_page():
         fragment_placeholder = st.empty()
         if st.session_state.carved_fragments:
             df = pd.DataFrame(st.session_state.carved_fragments)
+            if "data" in df.columns:
+                df = df.drop(columns=["data"])
+            if "identification" in df.columns:
+                df = df.drop(columns=["identification"])
             fragment_placeholder.dataframe(df, use_container_width=True)
         else:
             fragment_placeholder.info("No fragments found yet.")

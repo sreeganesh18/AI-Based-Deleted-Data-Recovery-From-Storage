@@ -1,5 +1,6 @@
 import pytest
 import os
+import math
 from storage_scan.scanner import DiskScanner
 
 
@@ -55,3 +56,49 @@ def test_cluster_mapping(dummy_disk_image):
         assert scanner.cluster_to_sector(0) == 8192
         # Cluster 1 starts at data_offset + cluster_size
         assert scanner.cluster_to_sector(1) == 8192 + 4096
+
+
+def test_entropy_calculation():
+    """Verifies Shannon entropy calculation."""
+    # Low entropy: all zeros
+    data_zeros = b"\x00" * 100
+    assert DiskScanner.calculate_entropy(data_zeros) == 0.0
+    
+    # High entropy: all 256 bytes present equally
+    data_full = bytes(range(256))
+    assert math.isclose(DiskScanner.calculate_entropy(data_full), 8.0)
+    
+    # Medium entropy: half 'A', half 'B'
+    data_half = b"A" * 50 + b"B" * 50
+    # p('A') = 0.5, p('B') = 0.5
+    # entropy = -(0.5 * log2(0.5) + 0.5 * log2(0.5)) = -(0.5 * -1 + 0.5 * -1) = 1.0
+    assert math.isclose(DiskScanner.calculate_entropy(data_half), 1.0)
+    
+    # Empty data
+    assert DiskScanner.calculate_entropy(b"") == 0.0
+
+
+def test_scanner_boundary_handling(tmp_path):
+    """Tests how scanner handles small files and out-of-bounds reads."""
+    # Create a small file (5 bytes)
+    small_file = tmp_path / "small.dd"
+    small_file.write_bytes(b"HELLO")
+    
+    with DiskScanner(str(small_file), block_size=512) as scanner:
+        # Out of bounds
+        assert scanner.read_block(1) == b""
+        
+        # Partial block read at the end
+        # Since it's < 512, read_block(0) should return all 5 bytes if mmap is used
+        block = scanner.read_block(0)
+        assert block == b"HELLO"
+        
+        # Scan blocks should return 0 blocks since file_size // block_size is 0
+        blocks = list(scanner.scan_blocks())
+        assert len(blocks) == 0
+
+
+def test_scanner_missing_file():
+    """Ensures FileNotFoundError is raised for missing images."""
+    with pytest.raises(FileNotFoundError):
+        DiskScanner("non_existent_file.dd")
