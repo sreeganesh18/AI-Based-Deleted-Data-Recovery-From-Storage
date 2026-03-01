@@ -44,8 +44,7 @@ class HybridCarver:
             return {"type": "other", "confidence": 1.0, "source": "zero_block"}
 
         # 1. Check for Signatures (e.g., JPEG headers)
-        if fragment.startswith(SignatureCarver.JPEG_HEADER1) or \
-           fragment.startswith(SignatureCarver.JPEG_HEADER2):
+        if fragment.startswith(b"\xff\xd8"):
             return {"type": "jpeg", "confidence": 1.0, "source": "signature"}
         
         # Add basic PDF header check for authority
