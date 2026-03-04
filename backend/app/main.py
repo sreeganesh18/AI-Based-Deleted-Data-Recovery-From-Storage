@@ -1,7 +1,7 @@
 from fastapi import FastAPI, UploadFile, File, Depends, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
-from .database import mysql, models, schemas
+from .database import mysql, models
 import os
 import shutil
 import uuid
@@ -76,12 +76,15 @@ async def start_recovery(image_id: int, db: Session = Depends(mysql.get_db)):
     if not db_image:
         raise HTTPException(status_code=404, detail="Disk image not found")
 
-    # Placeholder for Task Queue Trigger (Celery)
-    task_id = f"recovery_{uuid.uuid4().hex[:8]}"
+    from .workers.celery_worker import process_recovery
+
+    # Trigger background task with Celery
+    task = process_recovery.delay(image_id)
+
     db_image.status = "processing"
     db.commit()
 
-    return {"task_id": task_id, "status": "processing"}
+    return {"task_id": task.id, "status": "processing"}
 
 
 @app.get("/api/fragments/{image_id}")
