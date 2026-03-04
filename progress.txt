@@ -8,6 +8,6 @@ Phase 7: Backend System Implementation
 
 Phase 8: Integrating Core Research Modules into Backend Services
 - [x] Connect BlockScanner service to storage_scan/scanner.py [PRD-3.2]
-- [ ] Connect FragmentClassifier service to models/classifier.py [PRD-3.2]
+- [x] Connect FragmentClassifier service to models/classifier.py [PRD-3.2]
 - [ ] Connect ReassemblyEngine service to reconstruction/autoencoder.py [PRD-3.3]
 - [ ] Link REST API endpoints to asynchronous tasks [PRD-5]
