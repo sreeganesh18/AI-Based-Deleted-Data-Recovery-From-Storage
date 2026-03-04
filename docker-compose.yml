@@ -15,86 +15,123 @@
 # =============================================================================
 
 services:
-  app:
+  ui:
     build:
       context: .
       dockerfile: Dockerfile
-
-    # Human-readable container name
-    container_name: ai_data_recovery
-
-    # Port mapping: HOST:CONTAINER
-    # Change the left side (HOST) if 8501 is already in use on your machine
+    container_name: ai_recovery_ui
     ports:
       - "${STREAMLIT_HOST_PORT:-8501}:8501"
-
-    # -------------------------------------------------------------------------
-    # Volume Mounts
-    # -------------------------------------------------------------------------
     volumes:
-      # 1. Model Checkpoints (READ-ONLY — pre-trained weights)
-      #    Set CHECKPOINTS_DIR in .env to the folder containing *.pth files
-      #    Container path: /app/models/checkpoints/
       - "${CHECKPOINTS_DIR:-./models/checkpoints}:/app/models/checkpoints:ro"
-
-      # 2. Disk Image Data Directory (READ-ONLY — raw forensic images)
-      #    Set DATA_DIR in .env to the folder containing *.img / *.dd files
-      #    In the Streamlit UI, use path: /data/your_image.img
       - "${DATA_DIR:-./dataset}:/data:ro"
-
-      # 3. Recovered Data Output (READ-WRITE — exported recovered files)
-      #    Files exported via the UI will appear in this folder on your host.
       - "${RECOVERED_DIR:-./recovered_data}:/app/recovered_data:rw"
-
-      # 4. OPTIONAL: Super-Resolution Model Cache
-      #    Persist the FSRCNN model so it's not re-downloaded on each restart.
       - fsrcnn_model_cache:/app/reconstruction/models
-
-    # -------------------------------------------------------------------------
-    # Environment Variables
-    # -------------------------------------------------------------------------
     environment:
-      # Streamlit server configuration
       - STREAMLIT_SERVER_ADDRESS=0.0.0.0
       - STREAMLIT_SERVER_PORT=8501
       - STREAMLIT_SERVER_HEADLESS=true
       - STREAMLIT_BROWSER_GATHER_USAGE_STATS=false
-
-      # PyTorch: disable CUDA entirely (CPU-only inference)
       - CUDA_VISIBLE_DEVICES=""
-
-      # Python: do not buffer stdout (better container logging)
       - PYTHONUNBUFFERED=1
       - PYTHONDONTWRITEBYTECODE=1
-
-    # -------------------------------------------------------------------------
-    # Restart Policy
-    # -------------------------------------------------------------------------
     restart: unless-stopped
-
-    # -------------------------------------------------------------------------
-    # Healthcheck (mirrors the Dockerfile HEALTHCHECK)
-    # -------------------------------------------------------------------------
+    depends_on:
+      api:
+        condition: service_started
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://localhost:8501/_stcore/health" ]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 30s
-
-    # -------------------------------------------------------------------------
-    # Labels (metadata for tooling / documentation)
-    # -------------------------------------------------------------------------
     labels:
       - "com.project.name=AI-Based Deleted Data Recovery"
       - "com.project.description=Streamlit UI for AI-powered forensic file recovery"
       - "com.project.python=3.12"
 
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ai_recovery_api
+    command: uvicorn backend.app.main:app --host 0.0.0.0 --port 8000
+    ports:
+      - "${API_HOST_PORT:-8000}:8000"
+    environment:
+      - DATABASE_URL=${DATABASE_URL:-mysql+mysqlconnector://root:root@mysql:3306/forensic_ai}
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
+      - UPLOAD_DIR=${UPLOAD_DIR:-/app/uploads}
+      - RECOVERY_DIR=${RECOVERY_DIR:-/app/evidence/recovered}
+      - PYTHONUNBUFFERED=1
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    volumes:
+      - "${DATA_DIR:-./dataset}:/data:ro"
+      - "${RECOVERED_DIR:-./recovered_data}:/app/recovered_data:rw"
+
+  mysql:
+    image: mysql:8
+    container_name: ai_recovery_mysql
+    environment:
+      - MYSQL_DATABASE=${MYSQL_DATABASE:-forensic_ai}
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD:-root}
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD:-root}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7
+    container_name: ai_recovery_redis
+    ports:
+      - "6379:6379"
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ai_recovery_worker
+    command: celery -A backend.app.workers.celery_worker.celery_app worker --loglevel=info
+    environment:
+      - DATABASE_URL=${DATABASE_URL:-mysql+mysqlconnector://root:root@mysql:3306/forensic_ai}
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
+      - UPLOAD_DIR=${UPLOAD_DIR:-/app/uploads}
+      - RECOVERY_DIR=${RECOVERY_DIR:-/app/evidence/recovered}
+      - PYTHONUNBUFFERED=1
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "celery -A backend.app.workers.celery_worker.celery_app inspect ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    volumes:
+      - "${CHECKPOINTS_DIR:-./models/checkpoints}:/app/models/checkpoints:ro"
+      - "${DATA_DIR:-./dataset}:/data:ro"
+      - "${RECOVERED_DIR:-./recovered_data}:/app/recovered_data:rw"
+
 # =============================================================================
 # Named Volumes
 # =============================================================================
 volumes:
-  # Persistent cache for the FSRCNN super-resolution model (~10MB)
-  # Avoids re-downloading from GitHub on every container restart.
+  mysql_data:
+    name: ai_recovery_mysql_data
   fsrcnn_model_cache:
     name: ai_recovery_fsrcnn_cache

@@ -82,10 +82,8 @@ RUN mkdir -p \
 # ---------------------------------------------------------------------------
 USER appuser
 
-# ---------------------------------------------------------------------------
-# Expose Streamlit default port
-# ---------------------------------------------------------------------------
-EXPOSE 8501
+# Expose Streamlit default port and FastAPI port
+EXPOSE 8501 8000
 
 # ---------------------------------------------------------------------------
 # Healthcheck — verifies Streamlit is responding
@@ -98,7 +96,7 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
 # Override with: docker compose run app python main.py --image /data/image.img
 # ---------------------------------------------------------------------------
 CMD ["streamlit", "run", "ui/app.py", \
-     "--server.address=0.0.0.0", \
-     "--server.port=8501", \
-     "--server.headless=true", \
-     "--browser.gatherUsageStats=false"]
+    "--server.address=0.0.0.0", \
+    "--server.port=8501", \
+    "--server.headless=true", \
+    "--browser.gatherUsageStats=false"]
