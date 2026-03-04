@@ -2,6 +2,8 @@ from fastapi import FastAPI, UploadFile, File, Depends, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from .database import mysql, models
+from .workers.celery_worker import celery_app, process_recovery, compute_hash
+from celery.result import AsyncResult
 import os
 import shutil
 import uuid
@@ -30,9 +32,8 @@ os.makedirs(RECOVERY_DIR, exist_ok=True)
 
 @app.on_event("startup")
 async def startup_event():
-    # Attempt to init DB, might fail if MySQL is not ready
-    # mysql.init_db()
-    pass
+    # Attempt to init DB
+    mysql.init_db()
 
 
 @app.get("/")
@@ -56,7 +57,7 @@ async def upload_image(
     # Store metadata in DB
     db_image = models.DiskImage(
         investigation_id=investigation_id,
-        file_path=file_path,
+        file_path=os.path.abspath(file_path),
         size=os.path.getsize(file_path),
         hash_sha256="pending",
         status="uploaded",
@@ -64,6 +65,9 @@ async def upload_image(
     db.add(db_image)
     db.commit()
     db.refresh(db_image)
+
+    # Trigger background hash calculation
+    compute_hash.delay(db_image.id)
 
     return {"image_id": db_image.id, "status": "uploaded"}
 
@@ -76,8 +80,6 @@ async def start_recovery(image_id: int, db: Session = Depends(mysql.get_db)):
     if not db_image:
         raise HTTPException(status_code=404, detail="Disk image not found")
 
-    from .workers.celery_worker import process_recovery
-
     # Trigger background task with Celery
     task = process_recovery.delay(image_id)
 
@@ -85,6 +87,19 @@ async def start_recovery(image_id: int, db: Session = Depends(mysql.get_db)):
     db.commit()
 
     return {"task_id": task.id, "status": "processing"}
+
+
+@app.get("/api/task-status/{task_id}")
+async def get_task_status(task_id: str):
+    """
+    Returns the current status of a background task.
+    """
+    task_result = AsyncResult(task_id, app=celery_app)
+    return {
+        "task_id": task_id,
+        "status": task_result.status,
+        "result": task_result.result if task_result.ready() else None,
+    }
 
 
 @app.get("/api/fragments/{image_id}")
