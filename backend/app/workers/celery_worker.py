@@ -7,6 +7,7 @@ from ..services.scanner import BlockScanner
 from ..services.entropy_profiler import EntropyProfiler
 from ..services.fragment_classifier import FragmentClassifier
 from ..services.reassembly_engine import ReassemblyEngine
+from ..services.generative_repair import GenerativeRepair
 
 # Celery Configuration
 REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")
@@ -76,6 +77,7 @@ def process_recovery(image_id: int):
         profiler = EntropyProfiler()
         classifier = FragmentClassifier()
         engine = ReassemblyEngine()
+        repair_module = GenerativeRepair()
 
         # Step 1: Scan
         fragments_raw = scanner.scan_image(db_image.file_path)
@@ -136,6 +138,11 @@ def process_recovery(image_id: int):
 
             # Reconstruct and optionally repair/denoise
             final_data = engine.reconstruct_file([session])
+
+            # Step 5: Generative Repair & Enhancement
+            final_data = repair_module.reconstruct_header(session["type"], final_data)
+            final_data = repair_module.inpaint_binary(final_data)
+            final_data = repair_module.enhance_image(session["type"], final_data)
 
             # Save recovered file
             recovered_filename = (
