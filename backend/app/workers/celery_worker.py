@@ -5,9 +5,10 @@ from ..database.mysql import SessionLocal
 from ..database import models
 from ..services.scanner import BlockScanner
 from ..services.entropy_profiler import EntropyProfiler
-from ..services.fragment_classifier import FragmentClassifier
+from carving.hybrid import HybridCarver
 from ..services.reassembly_engine import ReassemblyEngine
 from ..services.generative_repair import GenerativeRepair
+from utils.validation import assign_confidence_score
 
 # Celery Configuration
 REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")
@@ -75,7 +76,7 @@ def process_recovery(image_id: int):
         # Initialize services
         scanner = BlockScanner()
         profiler = EntropyProfiler()
-        classifier = FragmentClassifier()
+        carver = HybridCarver()
         engine = ReassemblyEngine()
         repair_module = GenerativeRepair()
 
@@ -93,8 +94,8 @@ def process_recovery(image_id: int):
             # Step 2: Entropy Profiling
             entropy_score = profiler.calculate_entropy(data)
 
-            # Step 3: AI Classification
-            prediction = classifier.classify_fragment(data)
+            # Step 3: Hybrid File Carving Identification
+            prediction = carver.identify_fragment(data)
 
             # Create DB entry for fragment
             fragment = models.Fragment(
@@ -103,7 +104,7 @@ def process_recovery(image_id: int):
                 block_size=len(data),
                 entropy=entropy_score,
                 fragment_hash=hashlib.sha256(data).hexdigest(),
-                classification=prediction["predicted_type"],
+                classification=prediction["type"],
                 confidence=prediction["confidence"],
             )
             fragments_objects.append(fragment)
@@ -114,8 +115,8 @@ def process_recovery(image_id: int):
                     "offset": offset,
                     "data": data,
                     "identification": {
-                        "type": prediction["predicted_type"].lower(),
-                        "source": "ai" if prediction["confidence"] > 0.8 else "entropy",
+                        "type": prediction["type"].lower(),
+                        "source": prediction["source"],
                     },
                 }
             )
@@ -137,7 +138,7 @@ def process_recovery(image_id: int):
                 continue
 
             # Reconstruct and optionally repair/denoise
-            final_data = engine.reconstruct_file([session])
+            final_data = engine.reconstruct_file(session["fragments"])
 
             # Step 5: Generative Repair & Enhancement
             final_data = repair_module.reconstruct_header(session["type"], final_data)
@@ -156,10 +157,11 @@ def process_recovery(image_id: int):
                 f.write(final_data)
 
             # Store metadata for reconstructed file
+            confidence_score = assign_confidence_score(final_data) / 100.0  # Normalize to [0, 1]
             reconstructed_file = models.ReconstructedFile(
                 disk_image_id=image_id,
                 file_type=session["type"],
-                confidence_score=0.9,  # Placeholder for overall session confidence
+                confidence_score=confidence_score,
                 recovered_path=recovered_path,
                 file_size=len(final_data),
                 recovery_status="completed",

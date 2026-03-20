@@ -1,6 +1,6 @@
 import logging
-from ...reconstruction.repair import repair_jpeg, repair_pdf
-from ...reconstruction.enhancement import denoise_image
+from reconstruction.repair import repair_jpeg, repair_pdf
+from reconstruction.enhancement import denoise_image
 import numpy as np
 import cv2
 

@@ -5,3 +5,4 @@ __pycache__/
 ai_deleted_data_recovery.egg-info/
 models\checkpoints\*
 dataset/fragments/*
+.env

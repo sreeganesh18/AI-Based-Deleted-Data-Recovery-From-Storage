@@ -52,7 +52,13 @@ class HybridCarver:
             return {"type": "pdf", "confidence": 1.0, "source": "signature"}
 
         # 2. Fallback to AI Classifier
-        fragment_tensor = torch.tensor(list(fragment), dtype=torch.float32) / 255.0
+        # Ensure fragment is exactly 512 bytes for the classifier
+        if len(fragment) > 512:
+            ai_input = fragment[:512]
+        else:
+            ai_input = fragment.ljust(512, b"\x00")
+            
+        fragment_tensor = torch.tensor(list(ai_input), dtype=torch.float32) / 255.0
         fragment_tensor = fragment_tensor.unsqueeze(0).unsqueeze(0).to(self.device) # (1, 1, 512)
         
         with torch.no_grad():

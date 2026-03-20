@@ -1,5 +1,6 @@
 from reconstruction.autoencoder import ReassemblyAutoencoder
 from reconstruction.grouping import FragmentGrouper
+from .fragment_classifier import FragmentClassifier
 from typing import List, Dict
 
 
@@ -10,44 +11,66 @@ class ReassemblyEngine:
     Connected to reconstruction/autoencoder.py for advanced AI-powered data reconstruction.
     """
 
-    def __init__(self, model_path: str = None):
-        self.autoencoder = ReassemblyAutoencoder(model_path=model_path)
-        self.grouper = FragmentGrouper()
+    def __init__(self, autoencoder_model_path: str = None, classifier_model_path: str = None):
+        self.autoencoder = ReassemblyAutoencoder(model_path=autoencoder_model_path)
+        
+        # Initialize classifier and pass its underlying model to the grouper
+        self.classifier_service = FragmentClassifier(model_path=classifier_model_path)
+        self.grouper = FragmentGrouper(classifier=self.classifier_service.model)
 
     def sequence_fragments(self, fragments: List[Dict]) -> List[Dict]:
         """
         Analyzes a list of fragments and sequences them using adjacency metrics.
         Input: list of { 'offset': int, 'data': bytes, 'identification': dict }
-        Output: list of { 'id': int, 'type': str, 'data': bytes, 'fragment_offsets': list, 'completed': bool }
+        Output: list of { 'id': int, 'type': str, 'fragments': list, 'fragment_offsets': list, 'complete': bool }
         """
         # Uses FragmentGrouper from reconstruction/grouping.py
         results = self.grouper.group_fragments(fragments)
         return results
 
-    def calculate_coherence(self, fragment_a: bytes, fragment_b: bytes) -> float:
-        """
-        Computes the semantic adjacency or Coherence of Euclidean Distance
-        between the tail of fragment_a and the head of fragment_b.
-        """
-        # In a real scenario, this would involve computing the coherence metric.
-        # For now, we use the autoencoder's confidence score as part of the metric.
-        score_a = self.autoencoder.get_confidence_score(fragment_a)
-        score_b = self.autoencoder.get_confidence_score(fragment_b)
-
-        # Simple coherence: average of confidence scores
-        return (score_a + score_b) / 2.0
-
-    def reconstruct_file(self, sequence: List[Dict]) -> bytes:
+    def reconstruct_file(self, fragments: List[Dict]) -> bytes:
         """
         Takes an ordered sequence of fragments and reconstructs the file.
-        Each fragment contains 'data' (bytes).
+        Applies denoising to each 512-byte fragment.
         """
+        if not fragments:
+            return b""
+            
+        # Sort by offset to handle gaps
+        sorted_fragments = sorted(fragments, key=lambda x: x.get('offset', 0))
+        
         reconstructed_data = bytearray()
+        current_disk_pos = sorted_fragments[0]['offset']
 
-        for fragment in sequence:
+        for fragment in sorted_fragments:
+            offset = fragment.get('offset', current_disk_pos)
             data = fragment.get("data", b"")
-            # Apply denoising through the autoencoder before reassembly
-            denoised = self.autoencoder.denoise(data)
-            reconstructed_data.extend(denoised)
+            
+            # 1. Fill gaps with zeros
+            if offset > current_disk_pos:
+                gap_size = offset - current_disk_pos
+                reconstructed_data.extend(b"\x00" * gap_size)
+            
+            # 2. Denoise the fragment (FragmentAutoencoder expects 512-byte chunks)
+            # If fragment is larger, we chunk it and denoise each part
+            chunk_size = 512
+            denoised_fragment = bytearray()
+            for i in range(0, len(data), chunk_size):
+                chunk = data[i : i + chunk_size]
+                denoised_chunk = self.autoencoder.denoise(chunk)
+                # Keep original length if possible
+                if len(chunk) < chunk_size:
+                    denoised_chunk = denoised_chunk[:len(chunk)]
+                denoised_fragment.extend(denoised_chunk)
+            
+            # 3. Add to total (handling overlap if any)
+            if offset < current_disk_pos:
+                overlap = current_disk_pos - offset
+                if overlap < len(denoised_fragment):
+                    reconstructed_data.extend(denoised_fragment[overlap:])
+            else:
+                reconstructed_data.extend(denoised_fragment)
+                
+            current_disk_pos = offset + len(data)
 
         return bytes(reconstructed_data)

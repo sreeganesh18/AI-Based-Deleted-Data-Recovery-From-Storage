@@ -1,4 +1,5 @@
 import math
+from collections import Counter
 
 
 class EntropyProfiler:
@@ -15,7 +16,12 @@ class EntropyProfiler:
             return 0.0
 
         entropy = 0.0
-        # Placeholder implementation
+        counts = Counter(data)
+        total_len = len(data)
+        for count in counts.values():
+            p = count / total_len
+            entropy -= p * math.log2(p)
+            
         return entropy
 
     def profile_fragment(self, data: bytes) -> dict:

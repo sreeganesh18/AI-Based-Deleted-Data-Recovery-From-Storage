@@ -145,6 +145,7 @@ class FragmentGrouper:
                 'id': stream['id'],
                 'type': stream['type'],
                 'data': reassembled_data,
+                'fragments': stream['fragments'],
                 'fragment_offsets': [f['offset'] for f in stream['fragments']],
                 'completed': stream['complete']
             })

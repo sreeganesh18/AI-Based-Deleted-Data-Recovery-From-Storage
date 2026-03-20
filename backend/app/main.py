@@ -41,12 +41,38 @@ async def root():
     return {"message": "AI File Carving System API is running."}
 
 
+@app.post("/api/investigations")
+def create_investigation(
+    case_name: str,
+    investigator: str = None,
+    description: str = None,
+    db: Session = Depends(mysql.get_db),
+):
+    investigation = models.Investigation(
+        case_name=case_name,
+        investigator=investigator,
+        description=description,
+    )
+
+    db.add(investigation)
+    db.commit()
+    db.refresh(investigation)
+
+    return investigation
+
+
 @app.post("/api/upload-image", status_code=status.HTTP_201_CREATED)
 async def upload_image(
     investigation_id: int,
     file: UploadFile = File(...),
     db: Session = Depends(mysql.get_db),
 ):
+    ALLOWED_EXTENSIONS = [".dd", ".img", ".raw", ".iso", ".e01"]
+    ext = os.path.splitext(file.filename)[1].lower()
+
+    if ext not in ALLOWED_EXTENSIONS:
+        raise HTTPException(status_code=400, detail="Invalid disk image format")
+
     # Save file
     file_id = str(uuid.uuid4())
     file_path = os.path.join(UPLOAD_DIR, f"{file_id}_{file.filename}")

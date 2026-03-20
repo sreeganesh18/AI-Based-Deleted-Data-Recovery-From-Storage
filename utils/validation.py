@@ -32,7 +32,7 @@ def validate_integrity(data: bytes, file_type: str = None) -> bool:
     """
     if not data:
         return False
-        
+
     # Auto-detect if not provided
     if not file_type:
         if data.startswith(b"\xff\xd8"):
@@ -46,20 +46,22 @@ def validate_integrity(data: bytes, file_type: str = None) -> bool:
         try:
             img = Image.open(io.BytesIO(data))
             # Just opening it validates the header and basic structure
+            print(img)
             return True
         except Exception:
             return False
-            
+
     if file_type == "pdf":
         try:
             import fitz
+
             doc = fitz.open(stream=data, filetype="pdf")
             is_valid = doc.is_pdf and not doc.is_closed
             doc.close()
             return is_valid
         except Exception:
             return False
-            
+
     # Default to existing image check if type unknown
     return check_file_integrity(data)
 
@@ -85,7 +87,11 @@ def calculate_psnr(original: torch.Tensor, reconstructed: torch.Tensor) -> float
     # Convert to numpy and flatten for skimage
     orig_np = original.detach().cpu().numpy().astype(np.float32)
     reco_np = reconstructed.detach().cpu().numpy().astype(np.float32)
-    
+
+    # Check for identical inputs to avoid divide-by-zero warnings
+    if np.array_equal(orig_np, reco_np):
+        return float("inf")
+
     # PSNR needs a data_range if input is normalized [0, 1]
     return psnr(orig_np, reco_np, data_range=1.0)
 
@@ -97,16 +103,16 @@ def calculate_ssim(original: torch.Tensor, reconstructed: torch.Tensor) -> float
     """
     orig_np = original.detach().cpu().numpy()
     reco_np = reconstructed.detach().cpu().numpy()
-    
+
     # Handle batch dimension
-    if orig_np.ndim == 3: # (batch, 1, 512)
+    if orig_np.ndim == 3:  # (batch, 1, 512)
         ssims = []
         for i in range(orig_np.shape[0]):
             o = orig_np[i, 0, :]
             r = reco_np[i, 0, :]
             ssims.append(ssim(o, r, data_range=1.0, win_size=7))
         return np.mean(ssims)
-    
+
     # Single sample
     orig_np = orig_np.squeeze()
     reco_np = reco_np.squeeze()

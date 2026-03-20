@@ -14,7 +14,9 @@ class Investigation(Base):
     description = Column(Text)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
 
-    disk_images = relationship("DiskImage", back_populates="investigation")
+    disk_images = relationship(
+        "DiskImage", back_populates="investigation", cascade="all, delete"
+    )
 
 
 class DiskImage(Base):
@@ -28,8 +30,12 @@ class DiskImage(Base):
     status = Column(String(50), default="uploaded")
 
     investigation = relationship("Investigation", back_populates="disk_images")
-    fragments = relationship("Fragment", back_populates="disk_image")
-    reconstructed_files = relationship("ReconstructedFile", back_populates="disk_image")
+    fragments = relationship(
+        "Fragment", back_populates="disk_image", cascade="all, delete"
+    )
+    reconstructed_files = relationship(
+        "ReconstructedFile", back_populates="disk_image", cascade="all, delete"
+    )
 
 
 class Fragment(Base):

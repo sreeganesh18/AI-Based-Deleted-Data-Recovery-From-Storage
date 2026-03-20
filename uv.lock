@@ -7,6 +7,7 @@ name = "ai-deleted-data-recovery"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "app" },
     { name = "celery" },
     { name = "fastapi" },
     { name = "mysql-connector-python" },
@@ -34,6 +35,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "app", specifier = ">=0.0.1" },
     { name = "celery", specifier = ">=5.6.2" },
     { name = "fastapi", specifier = ">=0.135.1" },
     { name = "mysql-connector-python", specifier = ">=9.6.0" },
@@ -115,6 +117,12 @@ sdist = { url = "https://files.pythonhosted.org/packages/96/f0/5eb65b2bb0d09ac67
 wheels = [
     { url = "https://files.pythonhosted.org/packages/38/0e/27be9fdef66e72d64c0cdc3cc2823101b80585f8119b5c112c2e8f5f7dab/anyio-4.12.1-py3-none-any.whl", hash = "sha256:d405828884fc140aa80a3c667b8beed277f1dfedec42ba031bd6ac3db606ab6c", size = 113592, upload-time = "2026-01-06T11:45:19.497Z" },
 ]
+
+[[package]]
+name = "app"
+version = "0.0.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/76/11/f386fe5dedd254167f16cca77427eeb6ac0918e344ae881bcdec8057b3d5/app-0.0.1.zip", hash = "sha256:214549e746d777292d807eec7713c2cea332e08e037c923cd61ee1d5ab7a127f", size = 2160, upload-time = "2016-07-27T07:30:28.762Z" }
 
 [[package]]
 name = "attrs"

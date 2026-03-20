@@ -127,6 +127,22 @@ services:
       - "${DATA_DIR:-./dataset}:/data:ro"
       - "${RECOVERED_DIR:-./recovered_data}:/app/recovered_data:rw"
 
+  flower:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ai_recovery_flower
+    command: celery -A backend.app.workers.celery_worker.celery_app flower --port=5555
+    ports:
+      - "5555:5555"
+    environment:
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
+    depends_on:
+      redis:
+        condition: service_started
+      worker:
+        condition: service_started
+
 # =============================================================================
 # Named Volumes
 # =============================================================================

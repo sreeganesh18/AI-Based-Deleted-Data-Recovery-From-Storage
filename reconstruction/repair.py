@@ -1,6 +1,4 @@
 import io
-import os
-import subprocess
 import logging
 
 try:
