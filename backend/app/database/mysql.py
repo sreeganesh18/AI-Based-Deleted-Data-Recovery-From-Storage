@@ -5,7 +5,7 @@ import os
 
 # Database URL should be in environment variables
 DATABASE_URL = os.getenv(
-    "DATABASE_URL", "mysql+mysqlconnector://root:root@mysql:3306/forensic_ai"
+    "DATABASE_URL", "mysql+mysqlconnector://root:root@localhost:3306/forensic_ai"
 )
 
 engine = create_engine(DATABASE_URL)

@@ -1,12 +1,31 @@
+import os
+import sys
+
+# Add the root directory to path to allow importing sibling directories like storage_scan
+sys.path.append(
+    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+)
+
 from fastapi import FastAPI, UploadFile, File, Depends, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 from .database import mysql, models
 from .workers.celery_worker import celery_app, process_recovery, compute_hash
 from celery.result import AsyncResult
-import os
 import shutil
 import uuid
+from pydantic import BaseModel
+
+
+class UserAuth(BaseModel):
+    email: str
+    password: str
+
+
+class UserRegister(UserAuth):
+    name: str
+
 
 app = FastAPI(
     title="AI File Carving System API",
@@ -39,6 +58,27 @@ async def startup_event():
 @app.get("/")
 async def root():
     return {"message": "AI File Carving System API is running."}
+
+
+@app.post("/api/login")
+async def login(user: UserAuth):
+    if not user.email or not user.password:
+        raise HTTPException(status_code=400, detail="Missing email or password")
+    return {
+        "token": "mock-jwt-token-12345",
+        "user": {"email": user.email, "name": "Admin User"},
+    }
+
+
+@app.post("/api/register")
+async def register(user: UserRegister):
+    if not user.email or not user.password or not user.name:
+        raise HTTPException(status_code=400, detail="Missing required fields")
+    return {
+        "message": "User registered successfully",
+        "token": "mock-jwt-token-12345",
+        "user": {"email": user.email, "name": user.name},
+    }
 
 
 @app.post("/api/upload-image", status_code=status.HTTP_201_CREATED)
